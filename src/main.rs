@@ -1,7 +1,8 @@
 mod aws_handler;
 
-use actix_web::{get, App, HttpServer, Responder};
+use actix_web::{get, web, App, HttpServer, Responder};
 use aws_handler::AwsHandler;
+use std::sync::Arc;
 
 #[get("/")]
 async fn hello() -> impl Responder {
@@ -13,15 +14,26 @@ async fn health() -> impl Responder {
     "I'm alive!"
 }
 
+async fn list_buckets(aws_handler: web::Data<Arc<AwsHandler>>) -> impl Responder {
+    match aws_handler.list_buckets().await {
+        Ok(_) => "Buckets listed successfully",
+        Err(_) => "Failed to list buckets",
+    }
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let aws_handler = AwsHandler::new().await.expect("Failed to create AWS handler");
+    let profile = "KyribaTeamDevOpsEnablement-667083570110";
+    let aws_handler = Arc::new(AwsHandler::new(profile).await.expect("Failed to create AWS handler"));
 
-    // Example usage of AWS handler
-    aws_handler.list_buckets().await.expect("Failed to list buckets");
-
-    HttpServer::new(|| App::new().service(hello).service(health))
-        .bind("127.0.0.1:8080")?
-        .run()
-        .await
+    HttpServer::new(move || {
+        App::new()
+            .app_data(web::Data::new(aws_handler.clone()))
+            .service(hello)
+            .service(health)
+            .route("/list_buckets", web::get().to(list_buckets))
+    })
+    .bind("127.0.0.1:8080")?
+    .run()
+    .await
 }

@@ -1,14 +1,22 @@
 use aws_sdk_s3::{Client, Error};
 use aws_config::meta::region::RegionProviderChain;
+use aws_config::profile::ProfileFileCredentialsProvider;
 
 pub struct AwsHandler {
     client: Client,
 }
 
 impl AwsHandler {
-    pub async fn new() -> Result<Self, Error> {
+    pub async fn new(profile: &str) -> Result<Self, Error> {
         let region_provider = RegionProviderChain::default_provider().or_else("us-west-2");
-        let config = aws_config::from_env().region(region_provider).load().await;
+        let credentials_provider = ProfileFileCredentialsProvider::builder()
+            .profile_name(profile)
+            .build();
+        let config = aws_config::from_env()
+            .region(region_provider)
+            .credentials_provider(credentials_provider)
+            .load()
+            .await;
         let client = Client::new(&config);
 
         Ok(AwsHandler { client })
